@@ -1,7 +1,7 @@
-﻿using MareSynchronos.API.Data;
+﻿using ShoninSync.API.Data;
 using MessagePack;
 
-namespace MareSynchronos.API.Dto.Group;
+namespace ShoninSync.API.Dto.Group;
 
 [MessagePackObject(keyAsPropertyName: true)]
 public record GroupDto(GroupData Group)

@@ -1,4 +1,4 @@
-﻿namespace MareSynchronos.API.Dto.CharaData;
+﻿namespace ShoninSync.API.Dto.CharaData;
 
 public enum AccessTypeDto
 {

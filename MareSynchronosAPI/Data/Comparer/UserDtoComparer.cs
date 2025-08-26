@@ -1,6 +1,6 @@
-﻿using MareSynchronos.API.Dto.User;
+﻿using ShoninSync.API.Dto.User;
 
-namespace MareSynchronos.API.Data.Comparer;
+namespace ShoninSync.API.Data.Comparer;
 
 public class UserDtoComparer : IEqualityComparer<UserDto>
 {

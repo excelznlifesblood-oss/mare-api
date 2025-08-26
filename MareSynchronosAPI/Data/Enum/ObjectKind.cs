@@ -1,4 +1,4 @@
-﻿namespace MareSynchronos.API.Data.Enum;
+﻿namespace ShoninSync.API.Data.Enum;
 
 public enum ObjectKind
 {

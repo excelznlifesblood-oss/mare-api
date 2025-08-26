@@ -1,4 +1,4 @@
-﻿namespace MareSynchronos.API.Routes;
+﻿namespace ShoninSync.API.Routes;
 
 public class MareAuth
 {

@@ -1,7 +1,7 @@
-﻿using MareSynchronos.API.Data;
+﻿using ShoninSync.API.Data;
 using MessagePack;
 
-namespace MareSynchronos.API.Dto.User;
+namespace ShoninSync.API.Dto.User;
 
 [MessagePackObject(keyAsPropertyName: true)]
 public record UserDto(UserData User);

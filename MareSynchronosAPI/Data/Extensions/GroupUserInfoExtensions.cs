@@ -1,6 +1,6 @@
-﻿using MareSynchronos.API.Data.Enum;
+﻿using ShoninSync.API.Data.Enum;
 
-namespace MareSynchronos.API.Data.Extensions;
+namespace ShoninSync.API.Data.Extensions;
 
 public static class GroupUserInfoExtensions
 {

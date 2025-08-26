@@ -1,8 +1,8 @@
-﻿using MareSynchronos.API.Data;
-using MareSynchronos.API.Data.Enum;
+﻿using ShoninSync.API.Data;
+using ShoninSync.API.Data.Enum;
 using MessagePack;
 
-namespace MareSynchronos.API.Dto.User;
+namespace ShoninSync.API.Dto.User;
 
 [MessagePackObject(keyAsPropertyName: true)]
 public record UserPermissionsDto(UserData User, UserPermissions Permissions) : UserDto(User);

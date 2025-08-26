@@ -1,4 +1,4 @@
-﻿namespace MareSynchronos.API.Data.Comparer;
+﻿namespace ShoninSync.API.Data.Comparer;
 
 public class GroupDataComparer : IEqualityComparer<GroupData>
 {
