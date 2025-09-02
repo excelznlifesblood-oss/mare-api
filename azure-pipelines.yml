@@ -135,7 +135,7 @@ stages:
   jobs:
   - job: push
     pool:
-      vmImage: 'ubuntu-latest'
+      vmImage: 'windows-latest'
     steps:
     - task: NuGetAuthenticate@1
       displayName: 'Authenticate to Azure Artifacts'
