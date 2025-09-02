@@ -14,6 +14,7 @@ variables:
   BuildConfiguration: Release
   FEED: '000133ad-8b16-41ad-9d35-5040d0cd2c2f'     # Azure Artifacts feed GUID
   PROJECT_PATH: 'ShoninSyncAPI/ShoninSync.API.csproj'
+  FEED_SOURCE_URL: "https://excelzn.pkgs.visualstudio.com/000133ad-8b16-41ad-9d35-5040d0cd2c2f/_packaging/ShoninSync/nuget/v3/index.json"
 
 stages:
 # ===================== Build & Pack (.NET 9; version from AssemblyVersion) =====================
@@ -22,7 +23,7 @@ stages:
   jobs:
   - job: pack
     pool:
-      vmImage: 'windows-latest'
+      vmImage: 'ubuntu-latest'
     steps:
     - checkout: self
       clean: true
@@ -131,11 +132,12 @@ stages:
 - stage: Publish
   displayName: Publish to Azure Artifacts
   dependsOn: Build_Pack
-  condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))   # never push on PRs
+  condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
   jobs:
   - job: push
+    displayName: Push packages
     pool:
-      vmImage: 'windows-latest'
+      vmImage: 'ubuntu-latest'
     steps:
     - task: NuGetAuthenticate@1
       displayName: 'Authenticate to Azure Artifacts'
@@ -143,14 +145,9 @@ stages:
     - download: current
       artifact: packages
 
-    - task: NuGetCommand@2
-      displayName: 'NuGet push to Azure Artifacts'
-      inputs:
-        command: 'push'
-        publishVstsFeed: '$(FEED)'
-        allowPackageConflicts: true
-        packagesToPush: '$(Pipeline.Workspace)/packages/**/*.nupkg'
-        # To also publish symbols, uncomment:
-        # packagesToPush: |
-        #   $(Pipeline.Workspace)/packages/**/*.nupkg
-        #   $(Pipeline.Workspace)/packages/**/*.snupkg
+    - script: |
+        dotnet nuget push "$(Pipeline.Workspace)/packages/**/*.nupkg" \
+          --source "$(FEED_SOURCE_URL)" \
+          --api-key AzureArtifacts \
+          --skip-duplicate
+      displayName: 'dotnet nuget push (to ShoninSync)'
