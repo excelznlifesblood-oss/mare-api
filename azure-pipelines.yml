@@ -1,0 +1,138 @@
+# .azure-pipelines.yml
+trigger:
+  branches:
+    include:
+      - main
+      - feature/*
+
+pr:
+  branches:
+    include:
+      - '*'
+
+variables:
+  BuildConfiguration: Release
+  FEED: '000133ad-8b16-41ad-9d35-5040d0cd2c2f'            # <-- ProjectName/FeedName or feed GUID
+  PROJECT_PATH: 'ShoninSyncAPI/ShoninSync.API.csproj'
+
+stages:
+# ===================== Build & Pack (.NET 9) =====================
+- stage: Build_Pack
+  displayName: Build & Pack (.NET 9; release on main, prerelease on branches)
+  jobs:
+  - job: pack
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - checkout: self
+      clean: true
+
+    - task: UseDotNet@2
+      displayName: 'Use .NET SDK 9'
+      inputs:
+        packageType: 'sdk'
+        version: '9.0.x'
+
+    - task: NuGetAuthenticate@1
+      displayName: 'Authenticate to Azure Artifacts'
+
+    - script: dotnet restore "$(PROJECT_PATH)"
+      displayName: Restore
+
+    - script: >
+        dotnet build "$(PROJECT_PATH)"
+        --configuration $(BuildConfiguration)
+        --no-restore
+        /p:ContinuousIntegrationBuild=true
+      displayName: Build
+
+    # Read <PackageVersion> or <Version> from the csproj and compute prerelease if needed
+    - task: PowerShell@2
+      name: ComputeVersion
+      displayName: 'Compute effective package version'
+      inputs:
+        targetType: inline
+        script: |
+          $proj = "$(PROJECT_PATH)"
+          [xml]$xml = Get-Content $proj
+          $props = $xml.Project.PropertyGroup | Where-Object { $_.PackageVersion -or $_.Version }
+          $base = $props.PackageVersion
+          if (-not $base) { $base = $props.Version }
+          if (-not $base) {
+            Write-Error "No <PackageVersion> or <Version> found in $proj"
+            exit 1
+          }
+
+          $branch = "$(Build.SourceBranch)"
+          if ($branch -eq "refs/heads/main") {
+            $effective = $base  # release: exact version from csproj
+          } else {
+            # prerelease: base-version + -beta.<branch>.<buildId>, sanitized
+            $bname = $branch -replace '^refs/heads/','' -replace '[^0-9A-Za-z\-\.]','-'
+            $suffix = "beta.$bname.$(Build.BuildId)"
+            $effective = "$base-$suffix"
+          }
+
+          Write-Host "BaseVersion=$base"
+          Write-Host "EffectivePackageVersion=$effective"
+          Write-Host "##vso[task.setvariable variable=BaseVersion]$base"
+          Write-Host "##vso[task.setvariable variable=EffectivePackageVersion]$effective"
+
+    # Pack: on main, do NOT override version (uses csproj as-is)
+    - script: >
+        dotnet pack "$(PROJECT_PATH)"
+        --configuration $(BuildConfiguration)
+        --no-build
+        -o "$(Build.ArtifactStagingDirectory)/packages"
+        /p:IncludeSymbols=true
+        /p:SymbolPackageFormat=snupkg
+      displayName: Pack (release from csproj)
+      condition: eq(variables['Build.SourceBranch'], 'refs/heads/main')
+
+    # Pack: on non-main branches, override with prerelease version
+    - script: >
+        dotnet pack "$(PROJECT_PATH)"
+        --configuration $(BuildConfiguration)
+        --no-build
+        -o "$(Build.ArtifactStagingDirectory)/packages"
+        /p:PackageVersion=$(EffectivePackageVersion)
+        /p:IncludeSymbols=true
+        /p:SymbolPackageFormat=snupkg
+      displayName: Pack (prerelease from branch)
+      condition: ne(variables['Build.SourceBranch'], 'refs/heads/main')
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifact: packages'
+      inputs:
+        pathToPublish: '$(Build.ArtifactStagingDirectory)/packages'
+        artifactName: 'packages'
+        publishLocation: 'Container'
+
+# ===================== Publish to Azure Artifacts =====================
+- stage: Publish
+  displayName: Publish to Azure Artifacts
+  dependsOn: Build_Pack
+  # Publish on main and on feature branches; never during PR validation
+  condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+  jobs:
+  - job: push
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: NuGetAuthenticate@1
+      displayName: 'Authenticate to Azure Artifacts'
+
+    - download: current
+      artifact: packages
+
+    - task: NuGetCommand@2
+      displayName: 'NuGet push to Azure Artifacts'
+      inputs:
+        command: 'push'
+        publishVstsFeed: '$(FEED)'
+        allowPackageConflicts: true
+        packagesToPush: '$(Pipeline.Workspace)/packages/**/*.nupkg'
+        # If you want symbols on Azure Artifacts' symbol server, also push snupkg:
+        # packagesToPush: |
+        #   $(Pipeline.Workspace)/packages/**/*.nupkg
+        #   $(Pipeline.Workspace)/packages/**/*.snupkg
