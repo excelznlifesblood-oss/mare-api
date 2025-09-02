@@ -61,4 +61,96 @@ stages:
               [xml]$xml = Get-Content $path
               $props = $xml.Project.PropertyGroup
               $v = ($props | Where-Object { $_.AssemblyVersion }).AssemblyVersion
-              if ([string]::IsNullOrWhiteSpace($v)) { return $n
+              if ([string]::IsNullOrWhiteSpace($v)) { return $null }
+              return $v.Trim()
+            } catch { return $null }
+          }
+
+          function Get-AssemblyVersionFromAssemblyInfo($projDir) {
+            $ai = Get-ChildItem -Path $projDir -Recurse -Filter AssemblyInfo.cs -ErrorAction SilentlyContinue | Select-Object -First 1
+            if (-not $ai) { return $null }
+            $txt = Get-Content $ai.FullName -Raw
+            $m = [regex]::Match($txt, '\[assembly:\s*AssemblyVersion\("([^"]+)"\)\]')
+            if ($m.Success) { return $m.Groups[1].Value }
+            return $null
+          }
+
+          $projDir = Split-Path $projPath -Parent
+          $asmVer = Get-AssemblyVersionFromCsproj $projPath
+          if (-not $asmVer) { $asmVer = Get-AssemblyVersionFromAssemblyInfo $projDir }
+
+          if (-not $asmVer) {
+            Write-Error "Could not find AssemblyVersion in csproj or AssemblyInfo.cs."
+            exit 1
+          }
+
+          # Normalize: use major.minor.patch for NuGet (trim any 4th segment)
+          $segments = $asmVer.Split('.')
+          if ($segments.Count -ge 3) {
+            $baseSemVer = "$($segments[0]).$($segments[1]).$($segments[2])"
+          } elseif ($segments.Count -eq 2) {
+            $baseSemVer = "$($segments[0]).$($segments[1]).0"
+          } else {
+            Write-Error "AssemblyVersion '$asmVer' isn't usable; expected at least 'major.minor'."
+            exit 1
+          }
+
+          $branch = "$(Build.SourceBranch)"
+          if ($branch -eq "refs/heads/main") {
+            $effective = $baseSemVer
+          } else {
+            $bname = $branch -replace '^refs/heads/','' -replace '[^0-9A-Za-z\-\.]','-'
+            $effective = "$baseSemVer-beta.$bname.$(Build.BuildId)"
+          }
+
+          Write-Host "AssemblyVersion=$asmVer"
+          Write-Host "BaseSemVer=$baseSemVer"
+          Write-Host "EffectivePackageVersion=$effective"
+          Write-Host "##vso[task.setvariable variable=AssemblyVersion]$asmVer"
+          Write-Host "##vso[task.setvariable variable=BaseSemVer]$baseSemVer"
+          Write-Host "##vso[task.setvariable variable=EffectivePackageVersion]$effective"
+
+    - script: >
+        dotnet pack "$(PROJECT_PATH)"
+        --configuration $(BuildConfiguration)
+        --no-build
+        -o "$(Build.ArtifactStagingDirectory)/packages"
+        /p:PackageVersion=$(EffectivePackageVersion)
+        /p:IncludeSymbols=true
+        /p:SymbolPackageFormat=snupkg
+      displayName: Pack (version from AssemblyVersion)
+
+    - task: PublishBuildArtifacts@1
+      displayName: 'Publish Artifact: packages'
+      inputs:
+        pathToPublish: '$(Build.ArtifactStagingDirectory)/packages'
+        artifactName: 'packages'
+        publishLocation: 'Container'
+
+# ===================== Publish to Azure Artifacts =====================
+- stage: Publish
+  displayName: Publish to Azure Artifacts
+  dependsOn: Build_Pack
+  condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))   # never push on PRs
+  jobs:
+  - job: push
+    pool:
+      vmImage: 'ubuntu-latest'
+    steps:
+    - task: NuGetAuthenticate@1
+      displayName: 'Authenticate to Azure Artifacts'
+
+    - download: current
+      artifact: packages
+
+    - task: NuGetCommand@2
+      displayName: 'NuGet push to Azure Artifacts'
+      inputs:
+        command: 'push'
+        publishVstsFeed: '$(FEED)'
+        allowPackageConflicts: true
+        packagesToPush: '$(Pipeline.Workspace)/packages/**/*.nupkg'
+        # To also publish symbols, uncomment:
+        # packagesToPush: |
+        #   $(Pipeline.Workspace)/packages/**/*.nupkg
+        #   $(Pipeline.Workspace)/packages/**/*.snupkg
