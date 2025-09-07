@@ -73,6 +73,8 @@ public interface IMareHub
     Task UserUpdateDefaultPermissions(DefaultPermissionsDto defaultPermissionsDto);
     Task SetBulkPermissions(BulkPermissionsDto dto);
 
+    Task<TemporaryUserCreateDto> CreateTemporaryUser();
+
     Task<CharaDataFullDto?> CharaDataCreate();
     Task<CharaDataFullDto?> CharaDataUpdate(CharaDataUpdateDto updateDto);
     Task<bool> CharaDataDelete(string id);
