@@ -72,6 +72,7 @@ public interface IMareHub
     Task UserSetProfile(UserProfileDto userDescription);
     Task UserUpdateDefaultPermissions(DefaultPermissionsDto defaultPermissionsDto);
     Task SetBulkPermissions(BulkPermissionsDto dto);
+    Task<bool> UserHeartbeatCheck(string UID);
 
     Task<CharaDataFullDto?> CharaDataCreate();
     Task<CharaDataFullDto?> CharaDataUpdate(CharaDataUpdateDto updateDto);
