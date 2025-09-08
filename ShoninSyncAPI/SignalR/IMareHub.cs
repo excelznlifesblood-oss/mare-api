@@ -41,7 +41,8 @@ public interface IMareHub
     Task Client_GposeLobbyPushCharacterData(CharaDataDownloadDto charaDownloadDto);
     Task Client_GposeLobbyPushPoseData(UserData userData, PoseData poseData);
     Task Client_GposeLobbyPushWorldData(UserData userData, WorldData worldData);
-
+    Task Client_ExpireTemporaryUser(string uid);
+    
     Task<ConnectionDto> GetConnectionDto();
 
     Task GroupBanUser(GroupPairDto dto, string reason);
@@ -72,7 +73,6 @@ public interface IMareHub
     Task UserSetProfile(UserProfileDto userDescription);
     Task UserUpdateDefaultPermissions(DefaultPermissionsDto defaultPermissionsDto);
     Task SetBulkPermissions(BulkPermissionsDto dto);
-    Task<bool> UserHeartbeatCheck(string UID);
 
     Task<CharaDataFullDto?> CharaDataCreate();
     Task<CharaDataFullDto?> CharaDataUpdate(CharaDataUpdateDto updateDto);
